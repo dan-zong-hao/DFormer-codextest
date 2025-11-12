@@ -26,7 +26,9 @@ model.load_state_dict(state_dict, strict=True)
 model.eval()
 
 train_set = ISPRS_dataset(train_ids, cache=CACHE)
-train_loader = torch.utils.data.DataLoader(train_set,batch_size=BATCH_SIZE)
-for batch_idx, (data, dsm, target) in enumerate(train_loader):
-    data, dsm, target = data.cuda(), dsm.cuda(), target.cuda()
+train_loader = torch.utils.data.DataLoader(train_set, batch_size=BATCH_SIZE)
+for batch_idx, batch in enumerate(train_loader):
+    data = batch["data"].to(device)
+    dsm = batch["modal_x"].to(device)
+    target = batch["label"].to(device)
     f4, f8, f16, f32 = model(data, dsm)

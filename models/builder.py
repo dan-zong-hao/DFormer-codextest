@@ -9,18 +9,18 @@ from functools import partial
 from utils.engine.logger import get_logger
 import warnings
 
-from mmcv.cnn import MODELS as MMCV_MODELS
+# from mmcv.cnn import MODELS as MMCV_MODELS
 # from mmcv.cnn.bricks.registry import ATTENTION as MMCV_ATTENTION
-from mmcv.utils import Registry
+# from mmcv.utils import Registry
 
-MODELS = Registry('models', parent=MMCV_MODELS)
-# ATTENTION = Registry('attention', parent=MMCV_ATTENTION)
+# MODELS = Registry('models', parent=MMCV_MODELS)
+# # ATTENTION = Registry('attention', parent=MMCV_ATTENTION)
 
-BACKBONES = MODELS
-NECKS = MODELS
-HEADS = MODELS
-LOSSES = MODELS
-SEGMENTORS = MODELS
+# BACKBONES = MODELS
+# NECKS = MODELS
+# HEADS = MODELS
+# LOSSES = MODELS
+# SEGMENTORS = MODELS
 
 
 def build_backbone(cfg):
