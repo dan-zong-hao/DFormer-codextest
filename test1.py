@@ -7,18 +7,18 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from models.builder import EncoderDecoder
-from utils_1 import ISPRS_dataset, N_CLASSES, test_ids, BATCH_SIZE
+from utils_1 import ISPRS_dataset, N_CLASSES, test_ids, train_ids, BATCH_SIZE
 
 
 IGNORE_INDEX = 255
 
 
 def build_config(num_classes: int) -> SimpleNamespace:
-    """Return a minimal config namespace compatible with :class:`EncoderDecoder`."""
+    """Return a config namespace aligned with the NYU encoder-decoder checkpoint."""
     return SimpleNamespace(
         backbone="DFormerv2_L",
         decoder="ham",
-        decoder_embed_dim=768,
+        decoder_embed_dim=1024,
         num_classes=num_classes,
         drop_path_rate=0.3,
         bn_eps=1e-5,
@@ -32,20 +32,39 @@ def build_config(num_classes: int) -> SimpleNamespace:
 def load_checkpoint(model: nn.Module, ckpt_path: str, strict: bool = False) -> None:
     """Load weights from ``ckpt_path`` into ``model``.
 
-    The NYU checkpoint was trained with 40 classes, so we ignore mismatched
-    decoder weights when adapting to the ISPRS label space by default.
+    The NYU checkpoint was trained with a 40-class head and 1024-channel decoder,
+    so we drop parameters whose shapes do not match the current model (e.g. the
+    classification layer) before loading. This keeps the pretrained encoder and
+    shared decoder weights while re-initialising the segmentation head.
     """
     state = torch.load(ckpt_path, map_location="cpu")
     if isinstance(state, dict):
         for key in ("state_dict", "model", "module"):
-            if key in state and isinstance(state[key], dict):
-                state = state[key]
+            payload = state.get(key)
+            if isinstance(payload, dict):
+                state = payload
                 break
-    missing, unexpected = model.load_state_dict(state, strict=strict)
+
+    model_state = model.state_dict()
+    filtered_state = {}
+    skipped = []
+    for key, value in state.items():
+        target = model_state.get(key)
+        if target is None:
+            skipped.append(key)
+            continue
+        if target.shape != value.shape:
+            skipped.append(key)
+            continue
+        filtered_state[key] = value
+
+    missing, unexpected = model.load_state_dict(filtered_state, strict=strict)
+    if skipped:
+        print(f"Skipped incompatible keys ({len(skipped)}): {skipped}")
     if missing:
-        print(f"Missing keys ({len(missing)}): {missing}")
+        print(f"Missing keys after load ({len(missing)}): {missing}")
     if unexpected:
-        print(f"Unexpected keys ({len(unexpected)}): {unexpected}")
+        print(f"Unexpected keys after load ({len(unexpected)}): {unexpected}")
 
 
 @torch.no_grad()
@@ -168,6 +187,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    from utils_1 import train_ids  # defer to avoid circular import at module load
-
     main()
