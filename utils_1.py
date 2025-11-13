@@ -186,7 +186,7 @@ class ISPRS_dataset(torch.utils.data.Dataset):
         return tuple(results)
 
     def __getitem__(self, i):
-        # Pick a random image
+        # Pick a random image to stay consistent with the original implementation
         random_idx = random.randint(0, len(self.data_files) - 1)
 
         # If the tile hasn't been loaded yet, put in cache
@@ -194,15 +194,10 @@ class ISPRS_dataset(torch.utils.data.Dataset):
             data = self.data_cache_[random_idx]
         else:
             # Data is normalized in [0, 1]
-            ## Potsdam IRRG
             if DATASET == 'Potsdam':
-                ## RGB
                 data = io.imread(self.data_files[random_idx])[:, :, :3].transpose((2, 0, 1))
-                ## IRRG
-                # data = io.imread(self.data_files[random_idx])[:, :, (3, 0, 1, 2)][:, :, :3].transpose((2, 0, 1))
                 data = 1 / 255 * np.asarray(data, dtype='float32')
             else:
-            ## Vaihingen IRRG
                 data = io.imread(self.data_files[random_idx])
                 data = 1 / 255 * np.asarray(data.transpose((2, 0, 1)), dtype='float32')
             if self.cache:
@@ -236,7 +231,6 @@ class ISPRS_dataset(torch.utils.data.Dataset):
             data_p = data
             dsm_p = dsm
             label_p = label
-
         else:
             # Get a random patch
             x1, x2, y1, y2 = get_random_pos(data, WINDOW_SIZE)
@@ -247,10 +241,21 @@ class ISPRS_dataset(torch.utils.data.Dataset):
         # Data augmentation
         data_p, dsm_p, label_p = self.data_augmentation(data_p, dsm_p, label_p)
 
-        # Return the torch.Tensor values
-        return (torch.from_numpy(data_p),
-                torch.from_numpy(dsm_p),
-                torch.from_numpy(label_p))
+        # Ensure DSM has three channels to mimic modal_x in RGBXDataset
+        if dsm_p.ndim == 2:
+            dsm_p = np.expand_dims(dsm_p, axis=0)
+        if dsm_p.shape[0] == 1:
+            dsm_p = np.repeat(dsm_p, 3, axis=0)
+
+        sample = {
+            'data': torch.from_numpy(np.ascontiguousarray(data_p)).float(),
+            'modal_x': torch.from_numpy(np.ascontiguousarray(dsm_p)).float(),
+            'label': torch.from_numpy(np.ascontiguousarray(label_p)).long(),
+            'fn': self.data_files[random_idx],
+            'n': len(self.data_files)
+        }
+
+        return sample
         
 def get_random_pos(img, window_shape):
     """ Extract of 2D random patch of shape window_shape in the image """
